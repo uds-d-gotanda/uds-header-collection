@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Digital Dust</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-main: #1e293b;
+            --accent-blue: #0078ff;
+            --accent-cyan: #00d2ff;
+            --accent-glow: rgba(0, 120, 255, 0.4);
+        }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .text-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+        }
+
+        .display-title {
+            display: inline-block;
+            /* 文字数に応じてJS側で調整されますが、ベースラインを設定 */
+            font-size: 25vw; 
+            font-weight: 900;
+            color: var(--text-main);
+            letter-spacing: -0.04em;
+            line-height: 1;
+            user-select: none;
+            background: linear-gradient(180deg, var(--text-main) 0%, #334155 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(0, 120, 255, 0.1));
+            transition: filter 0.5s ease, transform 0.5s ease;
+        }
+
+        .display-title.is-hovered {
+            filter: drop-shadow(0 0 25px var(--accent-glow));
+            transform: scale(1.02);
+        }
+
+        .edge-fade {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(90deg, var(--bg-color) 0%, transparent 10%, transparent 90%, var(--bg-color) 100%);
+            z-index: 4;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="edge-fade"></div>
+    <canvas id="canvas"></canvas>
+
+    <div class="text-container">
+        <h1 class="display-title" id="main-text"></h1>
+    </div>
+
+<script>
+    /**
+     * 【カスタマイズ】表示したい文字をここに入れてください
+     */
+    const DISPLAY_TEXT = "IT"; 
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const textEl = document.getElementById('main-text');
+    
+    let particles = [];
+    let hitMap = []; 
+    let mouse = { x: -1000, y: -1000 };
+    
+    const PARTICLE_COUNT = 500; 
+    const GRAVITY = 0.05;
+    const FRICTION = 0.98;
+
+    function initText() {
+        textEl.innerText = DISPLAY_TEXT;
+        // 文字数が多い場合にフォントサイズを自動で縮小する
+        const baseVw = DISPLAY_TEXT.length > 2 ? (60 / DISPLAY_TEXT.length) : 32;
+        textEl.style.fontSize = `clamp(100px, ${baseVw}vw, 400px)`;
+    }
+
+    function generateHitMap() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        if (w <= 0 || h <= 0) return;
+
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        
+        const style = window.getComputedStyle(textEl);
+        tempCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        tempCtx.textAlign = 'center';
+        tempCtx.textBaseline = 'middle';
+        tempCtx.fillText(DISPLAY_TEXT, tempCanvas.width / 2, tempCanvas.height / 2);
+
+        try {
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            hitMap = imageData.data; 
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function checkHit(x, y) {
+        if (!hitMap || hitMap.length === 0) return false;
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        if (ix < 0 || ix >= canvas.width || iy < 0 || iy >= canvas.height) return false;
+        return hitMap[(iy * canvas.width + ix) * 4 + 3] > 128;
+    }
+
+    class Particle {
+        constructor(isInitial = false) { this.reset(isInitial); }
+        reset(isInitial = false) {
+            this.x = Math.random() * canvas.width;
+            this.y = isInitial ? Math.random() * canvas.height : -20;
+            this.vx = (Math.random() - 0.5) * 0.5;
+            this.vy = Math.random() * 1 + 0.5;
+            this.size = Math.random() * 2 + 1;
+            this.color = Math.random() > 0.5 ? '#0078ff' : '#00d2ff';
+            this.isSettled = false;
+            this.opacity = Math.random() * 0.5 + 0.3;
+        }
+        update() {
+            if (this.isSettled) {
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 100) {
+                    this.isSettled = false;
+                    this.vx = dx * 0.12 + (Math.random() - 0.5) * 2;
+                    this.vy = dy * 0.12 - 2.5;
+                }
+                return;
+            }
+            this.vy += GRAVITY;
+            this.vx *= FRICTION;
+            this.vy *= FRICTION;
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (checkHit(this.x, this.y)) {
+                if (!checkHit(this.x, this.y - 3)) {
+                    this.isSettled = true;
+                    this.vx = 0; this.vy = 0;
+                }
+            }
+            if (this.y > canvas.height) this.reset();
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = this.opacity;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        initText();
+        generateHitMap();
+        if (particles.length === 0) {
+            particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle(true));
+        }
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const mouseHit = (mouse.x >= 0 && mouse.y >= 0) ? checkHit(mouse.x, mouse.y) : false;
+        if (mouseHit) textEl.classList.add('is-hovered');
+        else textEl.classList.remove('is-hovered');
+        particles.forEach(p => { p.update(); p.draw(); });
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+    });
+    window.addEventListener('touchstart', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.touches[0].clientX - rect.left;
+        mouse.y = e.touches[0].clientY - rect.top;
+    }, {passive: true});
+    window.addEventListener('mouseleave', () => { mouse.x = -1000; mouse.y = -1000; });
+    window.addEventListener('resize', init);
+
+    document.fonts.ready.then(() => {
+        init();
+        animate();
+    });
+</script>
+</body>
+</html>
