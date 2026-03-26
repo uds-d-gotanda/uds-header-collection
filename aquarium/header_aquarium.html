@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Digital Aquarium - Stable Animation Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-main: #1e293b;
+            --accent-blue: #0078ff;
+            --accent-cyan: #00d2ff;
+            --accent-purple: #7028e4;
+        }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .edge-fade {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--bg-color) 0%, transparent 10%, transparent 90%, var(--bg-color) 100%);
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .text-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            pointer-events: auto;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* グラデーションアニメーション */
+        @keyframes gradient-flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .it-title {
+            display: inline-block;
+            /* サイズをvw（幅）のみで制御する安定した設定に戻しました */
+            font-size: clamp(140px, 32vw, 380px);
+            font-weight: 900;
+            color: var(--text-main);
+            opacity: 0.9;
+            letter-spacing: -0.06em;
+            line-height: 0.8;
+            transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+            cursor: default;
+            user-select: none;
+            
+            background: linear-gradient(
+                270deg, 
+                var(--text-main), 
+                var(--accent-blue), 
+                var(--accent-cyan), 
+                var(--accent-purple),
+                var(--text-main)
+            );
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+        }
+
+        /* ホバー時に色が動き出し、わずかに拡大 */
+        .it-title:hover {
+            color: transparent;
+            opacity: 1;
+            transform: scale(1.03);
+            animation: gradient-flow 8s ease infinite;
+            filter: drop-shadow(0 15px 30px rgba(0, 120, 255, 0.25));
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none;
+            background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.4) 0%, transparent 50%);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="edge-fade"></div>
+    <div class="overlay"></div>
+    <canvas id="canvas"></canvas>
+
+    <div class="text-container">
+        <h1 class="it-title" id="it-text">IT</h1>
+    </div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let fishes = [];
+    let ripples = [];
+    let mouse = { x: -1000, y: -1000 };
+
+    window.addEventListener('resize', init);
+    
+    const handleInput = (x, y, isClick = false) => {
+        const rect = canvas.getBoundingClientRect();
+        const touchX = x - rect.left;
+        const touchY = y - rect.top;
+        mouse.x = touchX;
+        mouse.y = touchY;
+        if (isClick || Math.random() > 0.85) createRipple(touchX, touchY, isClick);
+    };
+
+    window.addEventListener('mousemove', (e) => handleInput(e.clientX, e.clientY));
+    window.addEventListener('mousedown', (e) => handleInput(e.clientX, e.clientY, true));
+    window.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        handleInput(touch.clientX, touch.clientY, true);
+    }, {passive: true});
+
+    function createRipple(x, y, isBig = false) {
+        ripples.push({ x, y, r: 0, opacity: 0.4, speed: isBig ? 3.5 : 1.2, maxR: isBig ? 250 : 70 });
+    }
+
+    class Fish {
+        constructor() { this.init(); }
+        init() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.angle = (Math.random() - 0.5) * 0.5; 
+            this.speed = Math.random() * 0.7 + 0.3;
+            this.size = Math.random() * (canvas.width < 600 ? 5 : 10) + 5;
+            this.color = `rgba(0, ${Math.floor(Math.random()*100 + 100)}, 255, ${Math.random()*0.3 + 0.1})`;
+        }
+        update() {
+            const dx = this.x - mouse.x;
+            const dy = this.y - mouse.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 120) {
+                this.angle += (Math.atan2(dy, dx) - this.angle) * 0.1;
+                this.speed = 3;
+            } else {
+                this.speed += (0.8 - this.speed) * 0.02;
+                this.angle += (Math.random() - 0.5) * 0.03;
+                if (Math.cos(this.angle) < 0) this.angle += 0.05;
+            }
+            this.x += Math.cos(this.angle) * this.speed;
+            this.y += Math.sin(this.angle) * this.speed;
+            if (this.x > canvas.width + 50) this.x = -50;
+            if (this.x < -50) this.x = canvas.width + 50;
+            if (this.y > canvas.height + 50) this.y = -50;
+            if (this.y < -50) this.y = canvas.height + 50;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.moveTo(this.size * 1.5, 0);
+            ctx.quadraticCurveTo(0, this.size * 0.6, -this.size, 0);
+            ctx.quadraticCurveTo(0, -this.size * 0.6, this.size * 1.5, 0);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const count = Math.max(15, Math.floor((canvas.width * canvas.height) / 15000));
+        fishes = Array.from({length: count}, () => new Fish());
+    }
+
+    function animate() {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        fishes.forEach(f => { f.update(); f.draw(); });
+        ripples.forEach((r, i) => {
+            r.r += r.speed; r.opacity -= 0.008;
+            ctx.strokeStyle = `rgba(0, 120, 255, ${r.opacity})`;
+            ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+            if (r.opacity <= 0) ripples.splice(i, 1);
+        });
+        requestAnimationFrame(animate);
+    }
+
+    init();
+    animate();
+</script>
+</body>
+</html>
