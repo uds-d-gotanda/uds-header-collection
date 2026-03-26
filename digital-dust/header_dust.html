@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Digital Dust</title>
+    <title>Universal Digital Dust - Adaptive Snow Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #ffffff;
-            --text-main: #1e293b;
+            --text-main: #475569; /* 少し薄めのSlate 600に変更 */
             --accent-blue: #0078ff;
             --accent-cyan: #00d2ff;
-            --accent-glow: rgba(0, 120, 255, 0.4);
+            --accent-glow: rgba(0, 120, 255, 0.3);
         }
         
         body, html {
@@ -47,23 +47,24 @@
 
         .display-title {
             display: inline-block;
-            /* 文字数に応じてJS側で調整されますが、ベースラインを設定 */
-            font-size: 25vw; 
+            font-size: clamp(100px, 28vw, 360px);
             font-weight: 900;
             color: var(--text-main);
             letter-spacing: -0.04em;
-            line-height: 1;
+            line-height: 0.9;
             user-select: none;
-            background: linear-gradient(180deg, var(--text-main) 0%, #334155 100%);
+            /* グラデーションの終点も合わせて少し明るく調整 */
+            background: linear-gradient(180deg, var(--text-main) 0%, #64748b 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 10px rgba(0, 120, 255, 0.1));
-            transition: filter 0.5s ease, transform 0.5s ease;
+            
+            filter: drop-shadow(0 0 8px rgba(0, 120, 255, 0.05));
+            transition: filter 0.6s ease, transform 0.6s ease;
         }
 
         .display-title.is-hovered {
-            filter: drop-shadow(0 0 25px var(--accent-glow));
-            transform: scale(1.02);
+            filter: drop-shadow(0 0 20px var(--accent-glow));
+            transform: scale(1.015);
         }
 
         .edge-fade {
@@ -85,9 +86,6 @@
     </div>
 
 <script>
-    /**
-     * 【カスタマイズ】表示したい文字をここに入れてください
-     */
     const DISPLAY_TEXT = "IT"; 
 
     const canvas = document.getElementById('canvas');
@@ -98,15 +96,14 @@
     let hitMap = []; 
     let mouse = { x: -1000, y: -1000 };
     
-    const PARTICLE_COUNT = 500; 
-    const GRAVITY = 0.05;
-    const FRICTION = 0.98;
+    // 雪質パラメータ
+    const GRAVITY = 0.025; 
+    const FRICTION = 0.97; 
 
     function initText() {
         textEl.innerText = DISPLAY_TEXT;
-        // 文字数が多い場合にフォントサイズを自動で縮小する
-        const baseVw = DISPLAY_TEXT.length > 2 ? (60 / DISPLAY_TEXT.length) : 32;
-        textEl.style.fontSize = `clamp(100px, ${baseVw}vw, 400px)`;
+        const baseVw = DISPLAY_TEXT.length > 2 ? (55 / DISPLAY_TEXT.length) : 30;
+        textEl.style.fontSize = `clamp(100px, ${baseVw}vw, 360px)`;
     }
 
     function generateHitMap() {
@@ -145,22 +142,26 @@
         constructor(isInitial = false) { this.reset(isInitial); }
         reset(isInitial = false) {
             this.x = Math.random() * canvas.width;
-            this.y = isInitial ? Math.random() * canvas.height : -20;
-            this.vx = (Math.random() - 0.5) * 0.5;
-            this.vy = Math.random() * 1 + 0.5;
-            this.size = Math.random() * 2 + 1;
+            this.y = isInitial ? -(Math.random() * canvas.height) : -(Math.random() * 100 + 20);
+            this.vx = (Math.random() - 0.5) * 0.4;
+            this.vy = Math.random() * 0.5 + 0.2;
+            this.size = Math.random() * 2.5 + 1.5;
             this.color = Math.random() > 0.5 ? '#0078ff' : '#00d2ff';
             this.isSettled = false;
-            this.opacity = Math.random() * 0.5 + 0.3;
+            this.opacity = Math.random() * 0.4 + 0.3;
         }
         update() {
             if (this.isSettled) {
                 const dx = this.x - mouse.x;
                 const dy = this.y - mouse.y;
-                if (Math.sqrt(dx*dx + dy*dy) < 100) {
+                const distSq = dx*dx + dy*dy;
+                const radius = 120; 
+                
+                if (distSq < radius * radius) {
                     this.isSettled = false;
-                    this.vx = dx * 0.12 + (Math.random() - 0.5) * 2;
-                    this.vy = dy * 0.12 - 2.5;
+                    const force = (radius - Math.sqrt(distSq)) * 0.2;
+                    this.vx = (this.x - mouse.x) * force * 0.08 + (Math.random() - 0.5) * 3;
+                    this.vy = (this.y - mouse.y) * force * 0.08 - 2.5;
                 }
                 return;
             }
@@ -171,13 +172,13 @@
             this.y += this.vy;
 
             if (checkHit(this.x, this.y)) {
-                if (!checkHit(this.x, this.y - 3)) {
+                if (!checkHit(this.x, this.y - 4)) {
                     this.isSettled = true;
                     this.vx = 0; this.vy = 0;
                 }
             }
-            if (this.y > canvas.height) this.reset();
-            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y > canvas.height + 20) this.reset();
+            if (this.x < -20 || this.x > canvas.width + 20) this.reset();
         }
         draw() {
             ctx.fillStyle = this.color;
@@ -189,35 +190,51 @@
     }
 
     function init() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        canvas.width = w;
+        canvas.height = h;
+        
         initText();
         generateHitMap();
+
+        const area = w * h;
+        const targetCount = Math.clamp(Math.floor(area / 1100), 180, 550);
+
         if (particles.length === 0) {
-            particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle(true));
+            particles = Array.from({ length: targetCount }, () => new Particle(true));
+        } else {
+            if (particles.length > targetCount) particles.length = targetCount;
+            else {
+                while(particles.length < targetCount) particles.push(new Particle(true));
+            }
+            particles.forEach(p => p.isSettled = false);
         }
     }
 
+    Math.clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+
     function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
         const mouseHit = (mouse.x >= 0 && mouse.y >= 0) ? checkHit(mouse.x, mouse.y) : false;
         if (mouseHit) textEl.classList.add('is-hovered');
         else textEl.classList.remove('is-hovered');
+
         particles.forEach(p => { p.update(); p.draw(); });
         requestAnimationFrame(animate);
     }
 
-    window.addEventListener('mousemove', (e) => {
+    const updateMouse = (x, y) => {
         const rect = canvas.getBoundingClientRect();
-        mouse.x = e.clientX - rect.left;
-        mouse.y = e.clientY - rect.top;
-    });
-    window.addEventListener('touchstart', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        mouse.x = e.touches[0].clientX - rect.left;
-        mouse.y = e.touches[0].clientY - rect.top;
-    }, {passive: true});
+        mouse.x = x - rect.left;
+        mouse.y = y - rect.top;
+    };
+
+    window.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
+    window.addEventListener('touchstart', (e) => updateMouse(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
     window.addEventListener('mouseleave', () => { mouse.x = -1000; mouse.y = -1000; });
+    window.addEventListener('touchend', () => { mouse.x = -1000; mouse.y = -1000; });
     window.addEventListener('resize', init);
 
     document.fonts.ready.then(() => {
