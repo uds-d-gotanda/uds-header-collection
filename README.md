@@ -8,9 +8,9 @@ IT部門ポータルサイト向けのクリエイティブ・ヘッダーコレ
 ```text
 uds-header-collection/
 ├── aquarium/            # デジタルアクアリウム版
-│   └── it_header_aquarium.html
+│   └── header_aquarium.html
 └── digital-dust/        # デジタルダスト（積雪）版
-    └── it_header_dust.html
+    └── header_dust.html
 ```
 
 ## カスタマイズ：表示テキストの変更方法
@@ -21,7 +21,7 @@ uds-header-collection/
 プログラムが自動的に文字の形状をスキャンするため、JavaScript内の変数を書き換えるだけで、どのような文字にも粒子が積もります。
 
 ```javascript
-// it_header_dust.html の 130行目付近
+// header_dust.html の 130行目付近
 /**
  * 【カスタマイズ】表示したい文字をここに入れてください
  */
