@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Portal - Seasonal Window Card (Front Cat & Strong Flare)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;500;700&family=Outfit:wght@300;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --card-radius: 24px;
+            --border-color: #e2e8f0;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .header-card {
+            width: calc(100% - 20px);
+            height: calc(100% - 10px);
+            max-height: 190px;
+            position: relative;
+            background-color: #f8fafc;
+            border-radius: var(--card-radius);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 15px -2px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: background-color 2s ease;
+        }
+
+        /* 背景用キャンバス (太陽、山、星) */
+        #bg-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        .edge-fade {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0.4) 0%, transparent 15%, transparent 85%, rgba(255,255,255,0.4) 100%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* テキストエリア (背景とギミックの間) */
+        .text-container {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            text-align: center;
+            pointer-events: none;
+            width: 100%;
+        }
+
+        /* 前面用キャンバス (猫、フレアなど最前面のギミック) */
+        #fg-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; /* 下の要素へのクリックを通す */
+        }
+
+        .title-main {
+            font-size: 42px;
+            font-weight: 900;
+            color: #1e293b;
+            letter-spacing: -0.02em;
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 2px 10px rgba(255,255,255,0.8);
+            transition: color 2s ease;
+        }
+
+        .title-sub {
+            font-size: 11px;
+            font-weight: 500;
+            color: #64748b;
+            margin-top: 8px;
+            max-width: 85%;
+            margin-left: auto;
+            margin-right: auto;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: color 2s ease;
+        }
+
+        .title-sub a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; pointer-events: auto; }
+
+        .theme-night .title-main { color: #f8fafc; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        .theme-night .title-sub { color: #cbd5e1; }
+        .theme-night .edge-fade { background: linear-gradient(90deg, rgba(15,23,42,0.4) 0%, transparent 15%, transparent 85%, rgba(15,23,42,0.4) 100%); }
+        .theme-night .header-card { border-color: #334155; }
+        
+        .theme-evening .title-main { color: #431407; text-shadow: 0 2px 10px rgba(255,255,255,0.6); }
+        .theme-evening .edge-fade { background: linear-gradient(90deg, rgba(255,247,237,0.4) 0%, transparent 15%, transparent 85%, rgba(255,247,237,0.4) 100%); }
+    </style>
+</head>
+<body>
+
+    <div class="header-card" id="card-element">
+        <canvas id="bg-canvas"></canvas>
+        <div class="edge-fade"></div>
+
+        <div class="text-container">
+            <h1 class="title-main outfit">IT Portal</h1>
+            <div class="title-sub" id="security-news">Fetching security alerts...</div>
+        </div>
+
+        <canvas id="fg-canvas"></canvas>
+    </div>
+
+<script>
+    /**
+     * ==========================================
+     * テスト用設定
+     * 12: 濃いレンズフレア, 18: 最前面の猫
+     * ==========================================
+     */
+    const DEBUG_HOUR = 20; 
+
+    // レイヤー分けしたCanvas
+    const bgCanvas = document.getElementById('bg-canvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const fgCanvas = document.getElementById('fg-canvas');
+    const fgCtx = fgCanvas.getContext('2d');
+    
+    const card = document.getElementById('card-element');
+
+    const palettes = {
+        morning: { name: 'morning', skyTop: '#bae6fd', skyBottom: '#f0f9ff', sun: '#fde047', mountainBack: '#7dd3fc', mountainFront: '#34d399', themeClass: 'theme-morning' },
+        day: { name: 'day', skyTop: '#7dd3fc', skyBottom: '#e0f2fe', sun: '#fff', mountainBack: '#38bdf8', mountainFront: '#0ea5e9', themeClass: 'theme-day' },
+        evening: { name: 'evening', skyTop: '#ff7e5f', skyBottom: '#feb47b', sun: '#ff8a4c', mountainBack: '#f43f5e', mountainFront: '#9f1239', themeClass: 'theme-evening' },
+        night: { name: 'night', skyTop: '#0f172a', skyBottom: '#1e293b', sun: '#e2e8f0', mountainBack: '#334155', mountainFront: '#0f172a', themeClass: 'theme-night' }
+    };
+
+    let currentPalette = palettes.day;
+    let stars = [];
+    const sunTimes = [[6.8, 16.8], [6.4, 17.3], [5.8, 17.8], [5.2, 18.2], [4.7, 18.7], [4.4, 19.0], [4.6, 18.9], [5.0, 18.5], [5.4, 17.8], [5.8, 17.0], [6.2, 16.5], [6.7, 16.4]];
+
+    function initTimeTheme() {
+        const now = new Date(), month = now.getMonth(); 
+        let currentHour = (DEBUG_HOUR !== null) ? DEBUG_HOUR : now.getHours() + (now.getMinutes() / 60);
+        const [sunrise, sunset] = sunTimes[month];
+
+        if (currentHour >= sunrise - 0.5 && currentHour < sunrise + 3) currentPalette = palettes.morning;
+        else if (currentHour >= sunrise + 3 && currentHour < sunset - 1.5) currentPalette = palettes.day;
+        else if (currentHour >= sunset - 1.5 && currentHour < sunset + 0.5) currentPalette = palettes.evening;
+        else currentPalette = palettes.night;
+
+        card.className = "header-card " + currentPalette.themeClass;
+        card.style.backgroundColor = currentPalette.skyBottom;
+
+        if (currentPalette.name === 'night') {
+            stars = Array.from({ length: 40 }, () => ({ x: Math.random() * bgCanvas.width, y: Math.random() * 100, size: Math.random() * 1.5, opacity: Math.random(), speed: Math.random() * 0.02 }));
+        } else stars = [];
+    }
+
+    // ==========================================
+    // ギミッククラス群 (fgCtxに描画される)
+    // ==========================================
+
+    // 昼：濃く強調したレンズフレア
+    class LensFlare {
+        constructor() {
+            this.sunX = bgCanvas.width * 0.85;
+            this.sunY = 50;
+            this.life = 160;
+            this.maxLife = 160;
+        }
+        update() { this.life--; }
+        draw(ctx) {
+            const alpha = this.life / this.maxLife;
+            const targetX = -100;
+            const targetY = fgCanvas.height + 100;
+            
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+
+            // より強く輝く太陽の光
+            const sunGrad = ctx.createRadialGradient(this.sunX, this.sunY, 0, this.sunX, this.sunY, 250);
+            sunGrad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+            sunGrad.addColorStop(0.1, `rgba(255, 255, 230, ${alpha * 0.9})`);
+            sunGrad.addColorStop(0.4, `rgba(180, 200, 255, ${alpha * 0.5})`);
+            sunGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = sunGrad;
+            ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 250, 0, Math.PI*2); ctx.fill();
+
+            // 鋭く長い光芒
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.8})`; 
+            for(let i=0; i<24; i++) {
+                const ang = (i / 24) * Math.PI * 2 + (this.maxLife - this.life) * 0.001;
+                const len = i % 2 === 0 ? 400 : 200;
+                ctx.lineWidth = i % 2 === 0 ? 2 : 1;
+                ctx.beginPath();
+                ctx.moveTo(this.sunX, this.sunY);
+                ctx.lineTo(this.sunX + Math.cos(ang)*len, this.sunY + Math.sin(ang)*len);
+                ctx.stroke();
+            }
+
+            // より鮮明な対角線上のゴースト（アーティファクト）
+            const artifacts = [
+                { pos: 0.12, size: 70, color: `rgba(220, 200, 255, ${alpha * 0.6})`, type: 'circle' },
+                { pos: 0.28, size: 15, color: `rgba(255, 255, 255, ${alpha * 0.9})`, type: 'circle' },
+                { pos: 0.42, size: 35, color: `rgba(255, 255, 220, ${alpha * 0.7})`, type: 'hexagon' },
+                { pos: 0.55, size: 25, color: `rgba(200, 255, 255, ${alpha * 0.6})`, type: 'circle' },
+                { pos: 0.68, size: 60, color: `rgba(230, 200, 255, ${alpha * 0.5})`, type: 'hexagon' },
+                { pos: 0.85, size: 120, color: `rgba(255, 255, 255, ${alpha * 0.4})`, type: 'arc' }
+            ];
+
+            artifacts.forEach(art => {
+                const ax = this.sunX + (targetX - this.sunX) * art.pos;
+                const ay = this.sunY + (targetY - this.sunY) * art.pos;
+                ctx.fillStyle = art.color;
+                ctx.globalAlpha = alpha;
+
+                if (art.type === 'circle') {
+                    ctx.beginPath(); ctx.arc(ax, ay, art.size, 0, Math.PI*2); ctx.fill();
+                } else if (art.type === 'hexagon') {
+                    ctx.beginPath();
+                    for(let i=0; i<6; i++) {
+                        const ang = (i/6) * Math.PI * 2;
+                        ctx.lineTo(ax + Math.cos(ang)*art.size, ay + Math.sin(ang)*art.size);
+                    }
+                    ctx.closePath(); ctx.fill();
+                } else if (art.type === 'arc') {
+                    ctx.strokeStyle = art.color; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(ax, ay, art.size, 0, Math.PI*2); ctx.stroke();
+                }
+            });
+
+            ctx.restore();
+        }
+        isDead() { return this.life <= 0; }
+    }
+
+    // 夕方：黒猫（提示されたCSSの完全再現）
+    class WalkingCat {
+        constructor() {
+            this.x = -100;
+            this.y = fgCanvas.height - 40; 
+            this.vx = (fgCanvas.width + 200) / (12 * 60); // 12秒で横切るスピード
+            this.frame = 0; // 秒数ベースのフレーム
+            this.scale = 2; // 2倍サイズ
+        }
+        update() { 
+            this.x += this.vx; 
+            this.frame += 1/60; // 60fps想定
+        }
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.scale(this.scale, this.scale);
+            
+            // body-bounce (0.4s alternate = 0.8s cycle)
+            const bouncePhase = (this.frame % 0.8) / 0.8;
+            const bounce = (1 - Math.cos(bouncePhase * Math.PI * 2)) / 2 * -1.5;
+            ctx.translate(0, bounce);
+
+            ctx.fillStyle = '#222';
+
+            // leg-swing (0.5s cycle)
+            // back leg は 0.25s delay
+            const legPhase = (this.frame % 0.5) / 0.5;
+            const frontAngle = -Math.cos(legPhase * Math.PI * 2) * 25 * Math.PI / 180;
+            const backPhase = ((this.frame - 0.25) % 0.5) / 0.5;
+            const backAngle = -Math.cos(backPhase * Math.PI * 2) * 25 * Math.PI / 180;
+            
+            // 後ろ足 (left: 8px)
+            ctx.save(); 
+            ctx.translate(-10, 6); // 回転軸
+            ctx.rotate(backAngle); 
+            ctx.fillRect(-2, 0, 4, 12); 
+            ctx.restore();
+
+            // 前足 (right: 8px)
+            ctx.save(); 
+            ctx.translate(10, 6); // 回転軸
+            ctx.rotate(frontAngle); 
+            ctx.fillRect(-2, 0, 4, 12); 
+            ctx.restore();
+
+            // 胴体 (40x20 rounded)
+            ctx.beginPath(); ctx.roundRect(-20, -10, 40, 20, 10); ctx.fill();
+
+            // 頭 (18x15, right: -8px)
+            ctx.beginPath(); ctx.ellipse(19, -7.5, 9, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+
+            // 耳 (left: 3px, right: 8px)
+            ctx.beginPath(); ctx.moveTo(16, -19); ctx.lineTo(13, -13); ctx.lineTo(19, -13); ctx.fill(); // 左耳
+            ctx.beginPath(); ctx.moveTo(17, -19); ctx.lineTo(14, -13); ctx.lineTo(20, -13); ctx.fill(); // 右耳
+
+            // 尻尾 (left: -15px, top: 5px, tail-wag: 1s cycle)
+            const tailPhase = (this.frame % 1.0) / 1.0;
+            const tailAngle = Math.cos(tailPhase * Math.PI * 2) * 10 * Math.PI / 180;
+
+            ctx.save();
+            ctx.translate(-15, -3); // 回転軸
+            ctx.rotate(tailAngle);
+            ctx.beginPath(); ctx.roundRect(-20, -2, 20, 4, 2); ctx.fill();
+            ctx.restore();
+
+            ctx.restore();
+        }
+        isDead() { return this.x > fgCanvas.width + 100; }
+    }
+
+    // 朝：蓮の花
+    class LotusFlower {
+        constructor() {
+            this.x = Math.random() * (fgCanvas.width - 200) + 100;
+            this.stemHeight = 0;
+            this.targetHeight = 40 + Math.random() * 50;
+            this.bloomSize = 0;
+            this.maxBloom = 24;
+            this.state = 'growing';
+            this.life = 150;
+        }
+        update() {
+            if (this.state === 'growing') {
+                this.stemHeight += 1.5;
+                if (this.stemHeight >= this.targetHeight) this.state = 'blooming';
+            } else if (this.state === 'blooming') {
+                this.bloomSize += 0.6;
+                if (this.bloomSize >= this.maxBloom) this.state = 'steady';
+            }
+            if (this.state === 'steady') {
+                this.life--;
+                if (this.life <= 0) this.bloomSize *= 0.98;
+            }
+        }
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, fgCanvas.height);
+            ctx.strokeStyle = '#166534'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, -this.stemHeight); ctx.stroke();
+            if (this.bloomSize > 0.5) {
+                ctx.translate(0, -this.stemHeight);
+                const drawP = (l, w, a) => {
+                    ctx.save(); ctx.rotate(a);
+                    const g = ctx.createLinearGradient(0,0,0,-l);
+                    g.addColorStop(0,'#fff'); g.addColorStop(0.6,'#f472b6'); g.addColorStop(1,'#db2777');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(-w,-l*0.5,-w*0.5,-l,0,-l); ctx.bezierCurveTo(w*0.5,-l,w,-l*0.5,0,0); ctx.fill(); ctx.restore();
+                };
+                for(let i=0; i<8; i++) drawP(this.bloomSize*1.6, this.bloomSize*0.7, (i/8)*Math.PI*2);
+                for(let i=0; i<8; i++) drawP(this.bloomSize*1.1, this.bloomSize*0.5, (i/8)*Math.PI*2 + Math.PI/8);
+                ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(0,0,this.bloomSize*0.45,0,Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+        }
+        isDead() { return this.state === 'steady' && this.bloomSize < 0.2; }
+    }
+
+    // 夜：巨大流れ星
+    class MegaShootingStar {
+        constructor() {
+            // 軌道は「右上から左下」の一定
+            this.vx = -22; 
+            this.vy = 9;
+            
+            // 出現位置を画面全体に広げる
+            // 上辺（天井）または右辺（右外側）のランダムな位置からスタートさせることで、
+            // 画面の「左側」「中央」「右側」すべての領域をカバーする
+            if (Math.random() > 0.5) {
+                // 上から出現（画面の左・中央を流れやすい）
+                this.x = Math.random() * (fgCanvas.width + 200) - 100;
+                this.y = -100;
+            } else {
+                // 右から出現（画面の中央・下部を流れやすい）
+                this.x = fgCanvas.width + 100;
+                this.y = Math.random() * fgCanvas.height - 50;
+            }
+        }
+        update() { this.x += this.vx; this.y += this.vy; }
+        draw(ctx) {
+            ctx.save();
+            const grad = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 15, this.y - this.vy * 15);
+            grad.addColorStop(0, 'white'); grad.addColorStop(1, 'transparent');
+            ctx.strokeStyle = grad; ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 12, this.y - this.vy * 12); ctx.stroke();
+            ctx.restore();
+        }
+        isDead() { 
+            return this.y > fgCanvas.height + 250 || this.x < -300; 
+        }
+    }
+
+    let gimmicks = [];
+    function triggerGimmick() {
+        if (currentPalette.name === 'morning') gimmicks.push(new LotusFlower());
+        else if (currentPalette.name === 'day') gimmicks.push(new LensFlare());
+        else if (currentPalette.name === 'evening') gimmicks.push(new WalkingCat());
+        else if (currentPalette.name === 'night') gimmicks.push(new MegaShootingStar());
+    }
+
+    // クリックイベントはカード全体で拾う
+    card.addEventListener('mousedown', triggerGimmick);
+    card.addEventListener('touchstart', triggerGimmick, {passive: true});
+
+    let offsetB = 0, offsetF = 0;
+    function drawMountain(ctx, w, h, offset, amplitude, freq, color, baseY) {
+        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, h);
+        for (let x = 0; x <= w; x += 10) {
+            const y = baseY + Math.sin(x * freq + offset) * amplitude + Math.sin(x * freq * 2 + offset) * amplitude * 0.3;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(w, h); ctx.fill();
+    }
+
+    function init() {
+        bgCanvas.width = card.clientWidth; bgCanvas.height = card.clientHeight;
+        fgCanvas.width = card.clientWidth; fgCanvas.height = card.clientHeight;
+        initTimeTheme();
+    }
+
+    function animate() {
+        // ----------------------------------------
+        // 1. 背景の描画 (テキストの裏側)
+        // ----------------------------------------
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        const grad = bgCtx.createLinearGradient(0, 0, 0, bgCanvas.height);
+        grad.addColorStop(0, currentPalette.skyTop); grad.addColorStop(1, currentPalette.skyBottom);
+        bgCtx.fillStyle = grad; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+        if (stars.length) {
+            bgCtx.fillStyle = 'white';
+            stars.forEach(s => {
+                s.opacity += s.speed; if(s.opacity > 1 || s.opacity < 0.2) s.speed *= -1;
+                bgCtx.globalAlpha = s.opacity; bgCtx.beginPath(); bgCtx.arc(s.x, s.y, s.size, 0, Math.PI*2); bgCtx.fill();
+            });
+            bgCtx.globalAlpha = 1;
+        }
+
+        const sunX = bgCanvas.width * 0.85, sunY = 50;
+        bgCtx.fillStyle = currentPalette.sun; bgCtx.beginPath(); bgCtx.arc(sunX, sunY, 18, 0, Math.PI*2); bgCtx.fill();
+
+        offsetB += 0.003; drawMountain(bgCtx, bgCanvas.width, bgCanvas.height, offsetB, 12, 0.004, currentPalette.mountainBack, 135);
+        offsetF += 0.007; drawMountain(bgCtx, bgCanvas.width, bgCanvas.height, offsetF, 18, 0.007, currentPalette.mountainFront, 165);
+
+        // ----------------------------------------
+        // 2. ギミックの描画 (テキストの手前、最前面)
+        // ----------------------------------------
+        fgCtx.clearRect(0, 0, fgCanvas.width, fgCanvas.height);
+        gimmicks = gimmicks.filter(g => { 
+            g.update(); 
+            g.draw(fgCtx); 
+            return !g.isDead(); 
+        });
+
+        requestAnimationFrame(animate);
+    }
+
+    function fetchSecurityNews() {
+        const newsEl = document.getElementById('security-news');
+        const rssUrl = 'https://www.jpcert.or.jp/rss/jpcert.rdf';
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+        fetch(apiUrl).then(r => r.json()).then(data => {
+            if (data?.items?.length) {
+                const latest = data.items[0];
+                newsEl.innerHTML = `⚠️ <a href="${latest.link}" target="_blank">${latest.title}</a>`;
+            }
+        }).catch(() => { newsEl.innerText = '⚠️ 最新のセキュリティ情報に注意してください'; });
+    }
+
+    window.addEventListener('resize', init);
+    init(); animate(); fetchSecurityNews();
+    setInterval(initTimeTheme, 60000);
+</script>
+</body>
+</html>
