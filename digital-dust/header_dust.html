@@ -3,244 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Digital Dust - Adaptive Snow Edition</title>
+    <title>IT Portal - Digital Dust Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #ffffff;
-            --text-main: #475569; /* 少し薄めのSlate 600に変更 */
-            --accent-blue: #0078ff;
-            --accent-cyan: #00d2ff;
+            --text-main: #475569;
             --accent-glow: rgba(0, 120, 255, 0.3);
         }
-        
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg-color);
-            font-family: 'Inter', sans-serif;
-        }
-
-        #canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-        }
-
-        .text-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1;
-            pointer-events: none;
-            width: 100%;
-            text-align: center;
-        }
-
-        .display-title {
-            display: inline-block;
-            font-size: clamp(100px, 28vw, 360px);
-            font-weight: 900;
-            color: var(--text-main);
-            letter-spacing: -0.04em;
-            line-height: 0.9;
-            user-select: none;
-            /* グラデーションの終点も合わせて少し明るく調整 */
-            background: linear-gradient(180deg, var(--text-main) 0%, #64748b 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            
-            filter: drop-shadow(0 0 8px rgba(0, 120, 255, 0.05));
-            transition: filter 0.6s ease, transform 0.6s ease;
-        }
-
-        .display-title.is-hovered {
-            filter: drop-shadow(0 0 20px var(--accent-glow));
-            transform: scale(1.015);
-        }
-
-        .edge-fade {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(90deg, var(--bg-color) 0%, transparent 10%, transparent 90%, var(--bg-color) 100%);
-            z-index: 4;
-            pointer-events: none;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-color); font-family: 'Inter', sans-serif; }
+        #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
+        .text-container { position: absolute; top: 70%; left: 50%; transform: translate(-50%, -50%); z-index: 1; pointer-events: none; width: 100%; text-align: center; }
+        .display-title { display: inline-block; font-size: clamp(120px, 28vw, 320px); font-weight: 900; color: var(--text-main); letter-spacing: -0.04em; line-height: 0.9; background: linear-gradient(180deg, var(--text-main) 0%, #64748b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 8px rgba(0, 120, 255, 0.05)); transition: filter 0.6s ease, transform 0.6s ease; }
+        .display-title.is-hovered { filter: drop-shadow(0 0 20px var(--accent-glow)); transform: scale(1.015); }
+        .edge-fade { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, var(--bg-color) 0%, transparent 10%, transparent 90%, var(--bg-color) 100%); z-index: 4; pointer-events: none; }
     </style>
 </head>
 <body>
-
     <div class="edge-fade"></div>
     <canvas id="canvas"></canvas>
-
-    <div class="text-container">
-        <h1 class="display-title" id="main-text"></h1>
-    </div>
-
+    <div class="text-container"><h1 class="display-title" id="main-text">IT</h1></div>
 <script>
-    const DISPLAY_TEXT = "IT"; 
-
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const textEl = document.getElementById('main-text');
-    
-    let particles = [];
-    let hitMap = []; 
-    let mouse = { x: -1000, y: -1000 };
-    
-    // 雪質パラメータ
-    const GRAVITY = 0.025; 
-    const FRICTION = 0.97; 
-
-    function initText() {
-        textEl.innerText = DISPLAY_TEXT;
-        const baseVw = DISPLAY_TEXT.length > 2 ? (55 / DISPLAY_TEXT.length) : 30;
-        textEl.style.fontSize = `clamp(100px, ${baseVw}vw, 360px)`;
-    }
+    let particles = [], hitMap = [], mouse = { x: -1000, y: -1000 };
+    const GRAVITY = 0.025, FRICTION = 0.97;
 
     function generateHitMap() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (w <= 0 || h <= 0) return;
-
+        const w = window.innerWidth, h = window.innerHeight;
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        
+        tempCanvas.width = w; tempCanvas.height = h;
         const style = window.getComputedStyle(textEl);
         tempCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-        tempCtx.textAlign = 'center';
-        tempCtx.textBaseline = 'middle';
-        tempCtx.fillText(DISPLAY_TEXT, tempCanvas.width / 2, tempCanvas.height / 2);
-
-        try {
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            hitMap = imageData.data; 
-        } catch (e) {
-            console.error(e);
-        }
+        tempCtx.textAlign = 'center'; tempCtx.textBaseline = 'middle';
+        tempCtx.fillText("IT", tempCanvas.width / 2, tempCanvas.height * 0.7);
+        hitMap = tempCtx.getImageData(0, 0, w, h).data;
     }
 
     function checkHit(x, y) {
-        if (!hitMap || hitMap.length === 0) return false;
-        const ix = Math.floor(x);
-        const iy = Math.floor(y);
+        const ix = Math.floor(x), iy = Math.floor(y);
         if (ix < 0 || ix >= canvas.width || iy < 0 || iy >= canvas.height) return false;
         return hitMap[(iy * canvas.width + ix) * 4 + 3] > 128;
     }
 
     class Particle {
-        constructor(isInitial = false) { this.reset(isInitial); }
-        reset(isInitial = false) {
+        constructor(isInitial) { this.reset(isInitial); }
+        reset(isInitial) {
             this.x = Math.random() * canvas.width;
-            this.y = isInitial ? -(Math.random() * canvas.height) : -(Math.random() * 100 + 20);
-            this.vx = (Math.random() - 0.5) * 0.4;
-            this.vy = Math.random() * 0.5 + 0.2;
-            this.size = Math.random() * 2.5 + 1.5;
+            this.y = isInitial ? -(Math.random() * canvas.height) : -20;
+            this.vx = (Math.random() - 0.5) * 0.4; this.vy = Math.random() * 0.5 + 0.2;
+            this.size = Math.random() * 2 + 1.5;
             this.color = Math.random() > 0.5 ? '#0078ff' : '#00d2ff';
-            this.isSettled = false;
-            this.opacity = Math.random() * 0.4 + 0.3;
+            this.isSettled = false; this.opacity = Math.random() * 0.4 + 0.3;
         }
         update() {
             if (this.isSettled) {
-                const dx = this.x - mouse.x;
-                const dy = this.y - mouse.y;
-                const distSq = dx*dx + dy*dy;
-                const radius = 120; 
-                
-                if (distSq < radius * radius) {
-                    this.isSettled = false;
-                    const force = (radius - Math.sqrt(distSq)) * 0.2;
-                    this.vx = (this.x - mouse.x) * force * 0.08 + (Math.random() - 0.5) * 3;
-                    this.vy = (this.y - mouse.y) * force * 0.08 - 2.5;
-                }
+                const dx = this.x - mouse.x, dy = this.y - mouse.y;
+                if (dx*dx + dy*dy < 14400) { this.isSettled = false; this.vy = -2; this.vx = (this.x - mouse.x) * 0.1; }
                 return;
             }
-            this.vy += GRAVITY;
-            this.vx *= FRICTION;
-            this.vy *= FRICTION;
-            this.x += this.vx;
-            this.y += this.vy;
-
-            if (checkHit(this.x, this.y)) {
-                if (!checkHit(this.x, this.y - 4)) {
-                    this.isSettled = true;
-                    this.vx = 0; this.vy = 0;
-                }
-            }
-            if (this.y > canvas.height + 20) this.reset();
-            if (this.x < -20 || this.x > canvas.width + 20) this.reset();
+            this.vy += GRAVITY; this.vx *= FRICTION; this.vy *= FRICTION;
+            this.x += this.vx; this.y += this.vy;
+            if (checkHit(this.x, this.y)) { if (!checkHit(this.x, this.y - 4)) { this.isSettled = true; this.vx = 0; this.vy = 0; } }
+            if (this.y > canvas.height) this.reset();
         }
-        draw() {
-            ctx.fillStyle = this.color;
-            ctx.globalAlpha = this.opacity;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fill();
-        }
+        draw() { ctx.fillStyle = this.color; ctx.globalAlpha = this.opacity; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
     }
 
     function init() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        canvas.width = w;
-        canvas.height = h;
-        
-        initText();
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        textEl.style.fontSize = `clamp(120px, 28vw, 320px)`;
         generateHitMap();
-
-        const area = w * h;
-        const targetCount = Math.clamp(Math.floor(area / 1100), 180, 550);
-
-        if (particles.length === 0) {
-            particles = Array.from({ length: targetCount }, () => new Particle(true));
-        } else {
-            if (particles.length > targetCount) particles.length = targetCount;
-            else {
-                while(particles.length < targetCount) particles.push(new Particle(true));
-            }
-            particles.forEach(p => p.isSettled = false);
-        }
+        const count = Math.min(Math.floor((canvas.width * canvas.height) / 1100), 500);
+        particles = Array.from({ length: count }, () => new Particle(true));
     }
-
-    Math.clamp = (val, min, max) => Math.max(min, Math.min(max, val));
 
     function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        const mouseHit = (mouse.x >= 0 && mouse.y >= 0) ? checkHit(mouse.x, mouse.y) : false;
-        if (mouseHit) textEl.classList.add('is-hovered');
+        if (mouse.x > 0 && checkHit(mouse.x, mouse.y)) textEl.classList.add('is-hovered');
         else textEl.classList.remove('is-hovered');
-
         particles.forEach(p => { p.update(); p.draw(); });
         requestAnimationFrame(animate);
     }
 
-    const updateMouse = (x, y) => {
-        const rect = canvas.getBoundingClientRect();
-        mouse.x = x - rect.left;
-        mouse.y = y - rect.top;
-    };
-
-    window.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
-    window.addEventListener('touchstart', (e) => updateMouse(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
-    window.addEventListener('mouseleave', () => { mouse.x = -1000; mouse.y = -1000; });
-    window.addEventListener('touchend', () => { mouse.x = -1000; mouse.y = -1000; });
+    window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
     window.addEventListener('resize', init);
-
-    document.fonts.ready.then(() => {
-        init();
-        animate();
-    });
+    document.fonts.ready.then(() => { init(); animate(); });
 </script>
 </body>
 </html>
