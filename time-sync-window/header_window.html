@@ -125,7 +125,7 @@
     /**
      * ==========================================
      * テスト用設定
-     * 12: 濃いレンズフレア, 18: 最前面の猫
+     * 朝の動作確認のため 8 に設定しています。
      * ==========================================
      */
     const DEBUG_HOUR = null; 
@@ -141,7 +141,8 @@
     const palettes = {
         morning: { name: 'morning', skyTop: '#bae6fd', skyBottom: '#f0f9ff', sun: '#fde047', mountainBack: '#7dd3fc', mountainFront: '#34d399', themeClass: 'theme-morning' },
         day: { name: 'day', skyTop: '#7dd3fc', skyBottom: '#e0f2fe', sun: '#fff', mountainBack: '#38bdf8', mountainFront: '#0ea5e9', themeClass: 'theme-day' },
-        evening: { name: 'evening', skyTop: '#ff7e5f', skyBottom: '#feb47b', sun: '#ff8a4c', mountainBack: '#f43f5e', mountainFront: '#9f1239', themeClass: 'theme-evening' },
+        // 夕方の背景色は美しいコーラルオレンジのまま、太陽をサンセットオレンジ(#F6B483)に変更
+        evening: { name: 'evening', skyTop: '#ff7e5f', skyBottom: '#feb47b', sun: '#F6B483', mountainBack: '#f43f5e', mountainFront: '#9f1239', themeClass: 'theme-evening' },
         night: { name: 'night', skyTop: '#0f172a', skyBottom: '#1e293b', sun: '#e2e8f0', mountainBack: '#334155', mountainFront: '#0f172a', themeClass: 'theme-night' }
     };
 
@@ -325,7 +326,7 @@
             this.bloomSize = 0;
             this.maxBloom = 24;
             this.state = 'growing';
-            this.life = 150;
+            this.life = 60; // 咲き終わってから約1秒(60fps)で消えるように調整
         }
         update() {
             if (this.state === 'growing') {
@@ -337,7 +338,7 @@
             }
             if (this.state === 'steady') {
                 this.life--;
-                if (this.life <= 0) this.bloomSize *= 0.98;
+                // 徐々にしぼむ処理を削除し、そのまま寿命を減らす
             }
         }
         draw(ctx) {
@@ -358,40 +359,61 @@
             }
             ctx.restore();
         }
-        isDead() { return this.state === 'steady' && this.bloomSize < 0.2; }
+        isDead() { return this.state === 'steady' && this.life <= 0; } // 寿命が尽きたらパッと消滅
     }
 
     // 夜：巨大流れ星
     class MegaShootingStar {
         constructor() {
-            // 軌道は「右上から左下」の一定
-            this.vx = -22; 
-            this.vy = 9;
+            // 出現位置の幅を広げる：中央付近から右上隅まで (幅の 50% 〜 95% のランダムな位置)
+            this.x = fgCanvas.width * (0.50 + Math.random() * 0.45);
+            this.y = -50;
             
-            // 出現位置を画面全体に広げる
-            // 上辺（天井）または右辺（右外側）のランダムな位置からスタートさせることで、
-            // 画面の「左側」「中央」「右側」すべての領域をカバーする
-            if (Math.random() > 0.5) {
-                // 上から出現（画面の左・中央を流れやすい）
-                this.x = Math.random() * (fgCanvas.width + 200) - 100;
-                this.y = -100;
-            } else {
-                // 右から出現（画面の中央・下部を流れやすい）
-                this.x = fgCanvas.width + 100;
-                this.y = Math.random() * fgCanvas.height - 50;
-            }
+            // 目標位置の幅も少し広げて、軌道にバリエーションを持たせる (幅の 5% 〜 35% あたり)
+            const targetX = fgCanvas.width * (0.05 + Math.random() * 0.30);
+            const targetY = fgCanvas.height + 50;
+            
+            // 速度ベクトルの算出 (約 40 フレームで通過する速度)
+            const frames = 35 + Math.random() * 10;
+            this.vx = (targetX - this.x) / frames;
+            this.vy = (targetY - this.y) / frames;
         }
         update() { this.x += this.vx; this.y += this.vy; }
         draw(ctx) {
             ctx.save();
-            const grad = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 15, this.y - this.vy * 15);
-            grad.addColorStop(0, 'white'); grad.addColorStop(1, 'transparent');
-            ctx.strokeStyle = grad; ctx.lineWidth = 6;
-            ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 12, this.y - this.vy * 12); ctx.stroke();
+            // しっぽの長さを速度の10倍に伸ばし、十分な長さを確保
+            const tailFactor = 10;
+            const tailX = this.x - this.vx * tailFactor;
+            const tailY = this.y - this.vy * tailFactor;
+
+            // 軌跡のグラデーション
+            const grad = ctx.createLinearGradient(this.x, this.y, tailX, tailY);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)'); 
+            grad.addColorStop(0.1, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.strokeStyle = grad; 
+            ctx.lineWidth = 3; // シャープに見せるため少し細く
+            ctx.lineCap = 'round';
+            
+            // しっぽの描画
+            ctx.beginPath(); 
+            ctx.moveTo(this.x, this.y); 
+            ctx.lineTo(tailX, tailY); 
+            ctx.stroke();
+            
+            // 星のコア（輝く頭の部分）を追加
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         }
         isDead() { 
-            return this.y > fgCanvas.height + 250 || this.x < -300; 
+            return this.y > fgCanvas.height + 150 || this.x < -100; 
         }
     }
 
