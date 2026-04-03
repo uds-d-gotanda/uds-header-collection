@@ -155,8 +155,10 @@
         let currentHour = (DEBUG_HOUR !== null) ? DEBUG_HOUR : now.getHours() + (now.getMinutes() / 60);
         const [sunrise, sunset] = sunTimes[month];
 
-        if (currentHour >= sunrise - 0.5 && currentHour < sunrise + 3) currentPalette = palettes.morning;
-        else if (currentHour >= sunrise + 3 && currentHour < sunset - 1.5) currentPalette = palettes.day;
+        // 季節の日の出時刻から始まり、11:00までは「朝」と判定する
+        if (currentHour >= sunrise - 0.5 && currentHour < 11) currentPalette = palettes.morning;
+        // 11:00から、日没の1.5時間前までを「昼」と判定する
+        else if (currentHour >= 11 && currentHour < sunset - 1.5) currentPalette = palettes.day;
         else if (currentHour >= sunset - 1.5 && currentHour < sunset + 0.5) currentPalette = palettes.evening;
         else currentPalette = palettes.night;
 
